@@ -322,9 +322,10 @@ export class OrbitXControls extends InteractionHandler {
   };
 
   // Triggered by user interaction, the camera is dollied according to the active mode.
+  // Each step changes the distance by 5 % at dollySpeed 1. Negative steps dolly in.
   protected dolly = (direction: number) => {
     this.controlStateHandler.dolly(
-      Math.pow(1 + direction * 0.05, this.dollySpeed[this.mode]),
+      Math.pow(1.05, direction * this.dollySpeed[this.mode]),
       this.minDollyStep,
       this.minDistance[this.mode],
       this.maxDistance[this.mode]

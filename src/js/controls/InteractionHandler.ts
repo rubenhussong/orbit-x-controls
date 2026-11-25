@@ -1,6 +1,21 @@
 // Event button value for mouse keys
 const MOUSE = { LEFT: 0, RIGHT: 2 };
 
+/**
+ * Wheel events differ a lot between devices and browsers.
+ * Trackpads send a dense stream of small deltas. Mouse wheels send single events per notch,
+ * whose size depends on the browser (Safari: about 4px for a slow notch, hundreds of pixels when spinning fast).
+ * Each event is converted into dolly steps based on its size. An event after a pause is most likely a mouse wheel notch
+ * and gets a minimum number of steps.
+ */
+const WHEEL = {
+  PIXELS_PER_STEP: 6, // a typical trackpad event
+  MIN_STEPS_AFTER_PAUSE: 5,
+  MAX_STEPS: 5,
+  PAUSE: 100, // ms
+  LINE_HEIGHT: 16, // px, for deltaMode DOM_DELTA_LINE
+};
+
 // To store the active action
 const ACTION = {
   NONE: -1,
@@ -57,6 +72,9 @@ export abstract class InteractionHandler {
 
   // Stores the active action
   private action: number = ACTION.NONE;
+
+  // Time of the last wheel event to detect pauses
+  private lastWheelTime = -Infinity;
 
   // Gets updated on touch and mouse interaction
   private lastPointer = new Pointer();
@@ -249,8 +267,21 @@ export abstract class InteractionHandler {
   private handleMouseWheel = (e: WheelEvent) => {
     if (!this.dollyEnabled) return;
     this.action = ACTION.DOLLY;
-    this.dolly(Math.sign(e.deltaY));
+    this.dolly(this.getWheelSteps(e));
     this.action = ACTION.NONE;
+  };
+
+  // Converts a wheel event into dolly steps, see WHEEL.
+  private getWheelSteps = (e: WheelEvent) => {
+    const pixelsPerUnit = [1, WHEEL.LINE_HEIGHT, this.domElement.clientHeight];
+    const pixels = e.deltaY * (pixelsPerUnit[e.deltaMode] ?? 1);
+    let steps = Math.min(Math.abs(pixels) / WHEEL.PIXELS_PER_STEP, WHEEL.MAX_STEPS);
+    const now = performance.now();
+    if (now - this.lastWheelTime > WHEEL.PAUSE) {
+      steps = Math.max(steps, WHEEL.MIN_STEPS_AFTER_PAUSE);
+    }
+    this.lastWheelTime = now;
+    return Math.sign(pixels) * steps;
   };
 
   // ========== Touch Event Handlers
