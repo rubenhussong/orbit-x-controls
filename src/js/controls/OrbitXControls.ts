@@ -135,6 +135,7 @@ export class OrbitXControls extends InteractionHandler {
   // This might lead to an update of the orbit center.
   protected onEnable = () => {
     this.controlStateHandler.setFromObject(this.camera);
+    this.controlStateHandler.jumpToEnd();
   };
 
   // Stop smoothDamp and discard all future changes on disable.
