@@ -19,7 +19,7 @@ import {
 } from "../utils/mathUtils";
 import { SmoothDamper } from "../utils/SmoothDamper";
 import { DEG2RAD, clamp, euclideanModulo } from "three/src/math/MathUtils.js";
-import { SaveState } from "../utils/SaveState";
+import { SaveState, getUpFacingOrbitCenter } from "../utils/SaveState";
 
 /**
  * Realizes the 'orbit' mode.
@@ -450,7 +450,7 @@ class OrbitState extends ControlState {
    */
   loadState = (state: SaveState) => {
     this.orbitCenter.copy(state.orbitCenter);
-    this.up = state.up;
+    this.up = getUpFacingOrbitCenter(state);
     this.offset = approxZeroVec3(state.offset)
       ? state.forward.clone().negate().setLength(EPSILON)
       : state.offset.clone();

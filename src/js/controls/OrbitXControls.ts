@@ -103,19 +103,42 @@ export class OrbitXControls extends InteractionHandler {
   }
 
   /**
-   * 'orbit' - Orbit around a center point, but blocked at the poles to prevent being upside down.
-   * 'isotropic' - Like 'orbit', but without the pole locks. Instead, the camera “up” is continuously updated.
-   * 'grounded' - Rotation and position are separated. Rotation around oneself instead of an orbit center. Panning is actually a slow rotation around the orbit center.
+   * Changes the mode without transition and with the default up direction. See setMode.
    * @param mode new control mode
    */
   set mode(mode: ControlMode) {
-    if (this.mode === mode) return;
-    this._mode = mode;
-    const saveState = this.controlStateHandler.saveState();
-    this.controlStateHandler = this.getAnimatorFromMode(mode);
-    this.controlStateHandler.loadState(saveState);
-    this.internalUpdate();
+    this.setMode(mode);
   }
+
+  /**
+   * 'orbit' - Orbit around a center point, but blocked at the poles to prevent being upside down.
+   * 'isotropic' - Like 'orbit', but without the pole locks. Instead, the camera “up” is continuously updated.
+   * 'grounded' - Rotation and position are separated. Rotation around oneself instead of an orbit center. Panning is actually a slow rotation around the orbit center.
+   * The camera position is maintained, the distance limits of the new mode are enforced.
+   * @param mode new control mode
+   * @param options.up direction that should be up afterwards: the pole axis in 'orbit', the screen up in 'isotropic'. Ignored in 'grounded', where up always points away from the orbit center.
+   *   Defaults to the current camera up. If the camera looks along it (e.g. coming from 'grounded'), the former viewing direction along the surface becomes up.
+   *   Can also be used without changing the mode.
+   * @param options.transition if the camera should smooth damp to its new state (or jump if false)
+   */
+  setMode = (
+    mode: ControlMode,
+    { up, transition = false }: { up?: Vector3Like; transition?: boolean } = {}
+  ) => {
+    if (this.mode === mode && !up) return;
+    const saveState = this.controlStateHandler.saveState();
+    if (this.mode !== mode) {
+      this._mode = mode;
+      this.controlStateHandler = this.getAnimatorFromMode(mode);
+      // Start from the current state instead of the camera, which does not contain the orbit center.
+      this.controlStateHandler.loadState(saveState);
+      this.controlStateHandler.jumpToEnd();
+    }
+    if (up && mode !== "grounded") saveState.up.copy(up).normalize();
+    this.controlStateHandler.loadState(saveState);
+    this.clampDistance();
+    this.internalUpdate(transition);
+  };
 
   private getAnimatorFromMode = (
     mode: ControlMode

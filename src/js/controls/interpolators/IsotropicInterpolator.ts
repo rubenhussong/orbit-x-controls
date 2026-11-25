@@ -17,7 +17,7 @@ import {
 } from "../utils/mathUtils";
 import { SmoothDamper } from "../utils/SmoothDamper";
 import { DEG2RAD, clamp, euclideanModulo } from "three/src/math/MathUtils.js";
-import { SaveState } from "../utils/SaveState";
+import { SaveState, getUpFacingOrbitCenter } from "../utils/SaveState";
 
 /**
  * Realizes the 'isotropic' mode.
@@ -346,7 +346,10 @@ class IsotropicState extends ControlState {
     const forward = approxZeroVec3(state.offset)
       ? state.forward.clone()
       : state.offset.clone().negate().normalize();
-    const right = forward.clone().cross(state.up);
+    const right = forward
+      .clone()
+      .cross(getUpFacingOrbitCenter(state))
+      .normalize(); // Up is not necessarily orthogonal to forward
     const up = right.clone().cross(forward);
     const rotation = new Matrix4().makeBasis(right, up, forward.negate());
     this.quaternion.setFromRotationMatrix(rotation);
