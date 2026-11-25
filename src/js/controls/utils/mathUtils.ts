@@ -27,11 +27,7 @@ export const approxEqualVec3 = (
   b: Vector3Like,
   error = EPSILON
 ) => {
-  return (
-    approxEqual(a.x, b.x, error) &&
-    approxEqual(a.y, b.y, error) &&
-    approxEqual(a.z, b.z, error)
-  );
+  return approxZeroVec3({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }, error);
 };
 
 export const approxEqualQuat = (
