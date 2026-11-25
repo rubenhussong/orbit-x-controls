@@ -265,7 +265,7 @@ export class OrbitXControls extends InteractionHandler {
 
   /**
    * Updates camera position and orientation. This should be called in the tick loop.
-   * @param delta time difference in miliseconds since last update
+   * @param delta time difference in seconds since last update
    * @returns whether rerender is needed
    */
   update = (delta: number) => {
