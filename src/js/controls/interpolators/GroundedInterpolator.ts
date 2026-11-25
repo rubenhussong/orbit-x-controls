@@ -427,10 +427,10 @@ class GroundedState extends ControlState {
    */
   setOrbitCenter = (to: Vector3Like) => {
     if (approxEqualVec3(this.orbitCenter, to)) return;
-    const position = this.position;
+    const position = this.position.clone();
     this.distance = position.distanceTo(to);
     this.orbitCenter.copy(to);
-    if (!approxEqualVec3(position, to)) return;
+    if (approxEqualVec3(position, to)) return;
     const forward = this.forward;
     const oldUp = this.up;
     const newUp = position.clone().sub(to).normalize();
@@ -456,7 +456,7 @@ class GroundedState extends ControlState {
     // Rotate view horizontally
     if (!approxCollinear(newForward, up)) {
       const oldRight = this.right;
-      const newRight = newForward.clone().cross(up);
+      const newRight = newForward.clone().cross(up).normalize();
       if (approxAntiparallel(oldRight, newRight)) {
         const rot = new Quaternion().setFromAxisAngle(AXIS.Z, Math.PI);
         this.offsetQuat.multiply(rot);
