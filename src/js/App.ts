@@ -103,11 +103,13 @@ function startListeningOnResize(handleResize: () => void) {
 
 // ==================== R E N D E R   L O O P
 function startAnimating() {
-  const clock = new THREE.Clock();
+  const timer = new THREE.Timer();
+  timer.connect(document); // pauses while the tab is hidden
 
-  function animate() {
+  function animate(timestamp?: number) {
     requestAnimationFrame(animate);
-    const delta = clock.getDelta();
+    timer.update(timestamp);
+    const delta = timer.getDelta();
 
     const updated = controls.update(delta);
 
