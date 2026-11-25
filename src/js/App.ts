@@ -13,6 +13,11 @@ controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
 controls.minDistance.grounded = 6;
 controls.maxDistance.grounded = 15;
 
+controls.disable();
+camera.position.set(10, 0, 0);
+camera.rotation.set(0, Math.PI / 2, 0);
+controls.enable();
+
 const scene = new THREE.Scene();
 addLights();
 addSphere(3, "skyblue", 5);
