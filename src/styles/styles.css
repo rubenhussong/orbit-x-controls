@@ -1,3 +1,29 @@
 body {
   margin: 0;
 }
+
+#help {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  max-width: 340px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #eee;
+  font: 12px/1.5 system-ui, sans-serif;
+  pointer-events: none; /* do not block the controls */
+}
+
+#help p,
+#help ul {
+  margin: 4px 0;
+}
+
+#help ul {
+  padding-left: 16px;
+}
+
+#help .secondary {
+  color: #aaa;
+}

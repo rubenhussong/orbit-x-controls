@@ -4,10 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + TS</title>
+    <title>OrbitXControls Demo</title>
   </head>
   <body>
     <div id="app"></div>
+    <aside id="help">
+      <p>Mode: <strong data-mode></strong></p>
+      <ul data-input></ul>
+      <p class="secondary">
+        Keys: 1 orbit, 2 isotropic, 3 grounded, R reset<br />
+        Touch: 1 finger rotate, 2 fingers dolly, 3 fingers pan
+      </p>
+      <p class="secondary">
+        Frames rendered: <span data-frames>0</span> (only on change)
+      </p>
+      <p class="secondary">Last wheel gesture: <span data-wheel>–</span></p>
+    </aside>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
