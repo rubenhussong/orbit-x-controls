@@ -65,6 +65,7 @@ addAxisHelper(9);
 const help = createHelp();
 const gui = createGui();
 syncModeUi();
+startListeningToControls();
 startListeningToKeyboard();
 startMeasuringWheel();
 
@@ -113,14 +114,12 @@ function setDistanceLimits() {
   controls.minDistance.grounded = 6;
 }
 
+// The gui and help follow via the modechange event, see startListeningToControls.
 function setMode(mode: ControlMode) {
-  settings.mode = mode;
   controls.setMode(mode, {
     up: UP_OPTIONS[settings.up],
     transition: settings.transition,
   });
-  gui.controllersRecursive().forEach((c) => c.updateDisplay());
-  syncModeUi();
 }
 
 // Rebuilds the mode specific gui and help, if the mode has changed.
@@ -250,6 +249,32 @@ function addDistanceLimit(
   });
 }
 
+// ==================== C O N T R O L S   E V E N T S
+function startListeningToControls() {
+  controls.addEventListener("change", render);
+  controls.addEventListener("modechange", (e) => {
+    settings.mode = e.mode;
+    gui.controllersRecursive().forEach((c) => c.updateDisplay());
+    syncModeUi();
+  });
+  // Shows the latest events. Repeated events are counted instead of listed.
+  const log: { label: string; count: number }[] = [];
+  const add = (label: string) => {
+    const last = log[log.length - 1];
+    if (last?.label === label) last.count++;
+    else log.push({ label, count: 1 });
+    if (log.length > 6) log.shift();
+    help.events.textContent = log
+      .map(({ label, count }) => (count > 1 ? `${label} ×${count}` : label))
+      .join(" → ");
+  };
+  controls.addEventListener("change", () => add("change"));
+  controls.addEventListener("start", () => add("start"));
+  controls.addEventListener("end", () => add("end"));
+  controls.addEventListener("modechange", (e) => add(`modechange (${e.mode})`));
+  controls.addEventListener("rest", () => add("rest"));
+}
+
 // ==================== K E Y B O A R D
 function startListeningToKeyboard() {
   const modes: { [key: string]: ControlMode } = {
@@ -272,6 +297,7 @@ function createHelp() {
     list: element.querySelector<HTMLElement>("[data-input]")!,
     frames: element.querySelector<HTMLElement>("[data-frames]")!,
     wheel: element.querySelector<HTMLElement>("[data-wheel]")!,
+    events: element.querySelector<HTMLElement>("[data-events]")!,
   };
 }
 
@@ -336,9 +362,7 @@ function startAnimating() {
     timer.update(timestamp);
     const delta = timer.getDelta();
 
-    const updated = controls.update(delta);
-
-    if (updated) render();
+    controls.update(delta); // renders via the change event
     stats.update();
   }
   animate();
