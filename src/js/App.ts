@@ -42,8 +42,9 @@ let modeSettingsFolder: GUI | undefined;
 // Mode shown in the gui and help, see syncModeUi.
 let shownMode: ControlMode | undefined;
 
-// Counts rendered frames to show that rendering only happens on change.
+// Shown in the debug folder of the gui. Rendered frames show that rendering only happens on change.
 let renderedFrames = 0;
+const debug = { frames: "0", events: "–", wheel: "–" };
 
 // ==================== M A I N
 const stats = createStats();
@@ -214,6 +215,13 @@ function createGui() {
   wheelFolder.add(controls.wheel, "pause", 0, 500, 10).name("pause (ms)");
   wheelFolder.close();
 
+  // Text fields, so the values can be copied
+  const debugFolder = gui.addFolder("Debug");
+  debugFolder.add(debug, "frames").name("frames rendered").listen();
+  debugFolder.add(debug, "events").name("events").listen();
+  debugFolder.add(debug, "wheel").name("last wheel gesture").listen();
+  debugFolder.close();
+
   return gui;
 }
 
@@ -264,7 +272,7 @@ function startListeningToControls() {
     if (last?.label === label) last.count++;
     else log.push({ label, count: 1 });
     if (log.length > 6) log.shift();
-    help.events.textContent = log
+    debug.events = log
       .map(({ label, count }) => (count > 1 ? `${label} ×${count}` : label))
       .join(" → ");
   };
@@ -295,9 +303,6 @@ function createHelp() {
   return {
     mode: element.querySelector<HTMLElement>("[data-mode]")!,
     list: element.querySelector<HTMLElement>("[data-input]")!,
-    frames: element.querySelector<HTMLElement>("[data-frames]")!,
-    wheel: element.querySelector<HTMLElement>("[data-wheel]")!,
-    events: element.querySelector<HTMLElement>("[data-events]")!,
   };
 }
 
@@ -327,7 +332,7 @@ function startMeasuringWheel() {
       sum += Math.abs(e.deltaY);
       max = Math.max(max, Math.abs(e.deltaY));
       unit = UNITS[e.deltaMode];
-      help.wheel.textContent = `${events} events, deltaY avg ${(sum / events).toFixed(1)} / max ${max.toFixed(1)} ${unit}`;
+      debug.wheel = `${events} events, deltaY avg ${(sum / events).toFixed(1)} / max ${max.toFixed(1)} ${unit}`;
       // A new gesture starts after a short pause
       clearTimeout(resetTimeout);
       resetTimeout = window.setTimeout(() => {
@@ -371,5 +376,5 @@ function startAnimating() {
 function render() {
   renderer.render(scene, camera);
   renderedFrames++;
-  help.frames.textContent = String(renderedFrames);
+  debug.frames = String(renderedFrames);
 }
