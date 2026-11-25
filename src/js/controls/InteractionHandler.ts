@@ -15,11 +15,13 @@ const ACTION = {
   TOUCH_PAN: 5,
 };
 
-// Transformations triggered by user interaction
+// Transformations triggered by user interaction, and the start and end of an interaction
 export interface InteractionCallbacks {
   dolly: (direction: number) => void;
   rotate: (deltaX: number, deltaY: number) => void;
   pan: (deltaX: number, deltaY: number) => void;
+  onStart?: () => void;
+  onEnd?: () => void;
 }
 
 /**
@@ -207,6 +209,7 @@ export class InteractionHandler {
    * @param e the mouse event
    */
   private handleMouseStart = (e: MouseEvent) => {
+    const wasActive = this.action !== ACTION.NONE;
     switch (e.button) {
       case MOUSE.LEFT: {
         if (!this.rotateEnabled) return this.handleMouseStop();
@@ -225,12 +228,15 @@ export class InteractionHandler {
     this.lastPointer.set(e.clientX, e.clientY);
     this.preventContextMenu();
     this.startMouseChangeListeners();
+    if (!wasActive) this.callbacks.onStart?.();
   };
 
   // Cancel action that has been triggered by the mouse.
   private handleMouseStop = () => {
+    const wasActive = this.action !== ACTION.NONE;
     this.action = ACTION.NONE;
     this.stopMouseChangeListeners();
+    if (wasActive) this.callbacks.onEnd?.();
   };
 
   /**
@@ -262,9 +268,13 @@ export class InteractionHandler {
   // Dolly on mouse wheel
   private handleMouseWheel = (e: WheelEvent) => {
     if (!this.dollyEnabled) return;
+    // Restores a running action, e.g. scrolling while dragging
+    const previousAction = this.action;
+    if (previousAction === ACTION.NONE) this.callbacks.onStart?.();
     this.action = ACTION.DOLLY;
     this.callbacks.dolly(this.getWheelSteps(e));
-    this.action = ACTION.NONE;
+    this.action = previousAction;
+    if (previousAction === ACTION.NONE) this.callbacks.onEnd?.();
   };
 
   // Converts a wheel event into dolly steps, see wheel.
@@ -288,6 +298,7 @@ export class InteractionHandler {
    * @param e the touch event
    */
   private handleTouchStart = (e: TouchEvent) => {
+    const wasActive = this.action !== ACTION.NONE;
     switch (e.touches.length) {
       case 1: {
         if (!this.rotateEnabled) return this.handleTouchStop();
@@ -311,12 +322,15 @@ export class InteractionHandler {
     this.lastPointer.set(e.touches[0].clientX, e.touches[0].clientY);
     this.preventContextMenu();
     this.startTouchChangeListeners();
+    if (!wasActive) this.callbacks.onStart?.();
   };
 
   // Cancel action that has been triggered by touch.
   private handleTouchStop = () => {
+    const wasActive = this.action !== ACTION.NONE;
     this.action = ACTION.NONE;
     this.stopTouchChangeListeners();
+    if (wasActive) this.callbacks.onEnd?.();
   };
 
   /**

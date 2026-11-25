@@ -1,5 +1,6 @@
 import {
   Controls,
+  ControlsEventMap,
   PerspectiveCamera,
   Quaternion,
   Vector3,
@@ -17,10 +18,29 @@ import { SmoothDamper } from "./utils/SmoothDamper";
 import { approxEqual } from "./utils/mathUtils";
 
 /**
+ * Events of OrbitXControls, see addEventListener.
+ */
+export interface OrbitXControlsEventMap extends ControlsEventMap {
+  change: {}; // the camera has moved
+  start: {}; // user interaction started
+  end: {}; // user interaction ended
+  modechange: { mode: ControlMode }; // the mode has changed
+  rest: {}; // the camera has come to rest after moving
+}
+
+const _changeEvent = { type: "change" } as const;
+const _startEvent = { type: "start" } as const;
+const _endEvent = { type: "end" } as const;
+const _restEvent = { type: "rest" } as const;
+
+/**
  * Custom camera controls with different modes that define the transformations triggered by user interaction.
  * Extends three's Controls like OrbitControls: object is the camera, domElement the element listened to.
  */
-export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
+export class OrbitXControls extends Controls<
+  OrbitXControlsEventMap,
+  PerspectiveCamera
+> {
   private _mode: ControlMode;
   private controlStateHandler: ControlStateInterpolator<any>;
 
@@ -31,6 +51,8 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
     dolly: (direction) => this.dolly(direction),
     rotate: (deltaX, deltaY) => this.rotate(deltaX, deltaY),
     pan: (deltaX, deltaY) => this.pan(deltaX, deltaY),
+    onStart: () => this.dispatchEvent(_startEvent),
+    onEnd: () => this.dispatchEvent(_endEvent),
   });
 
   // Backing field of enabled, see constructor.
@@ -175,7 +197,8 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
       quaternion: this.object.quaternion.clone(),
     };
     const saveState = this.controlStateHandler.saveState();
-    if (this.mode !== mode) {
+    const modeChanged = this.mode !== mode;
+    if (modeChanged) {
       this._mode = mode;
       this.controlStateHandler = this.getAnimatorFromMode(mode);
       // Start from the current state instead of the camera, which does not contain the orbit center.
@@ -185,7 +208,7 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
     if (up && mode !== "grounded") saveState.up.copy(up).normalize();
     this.controlStateHandler.loadState(saveState);
     this.clampDistance();
-    this.internalUpdate();
+    this.internalUpdate(false, false); // change is dispatched below, after the blend start is applied
     if (transition && this.dampingEnabled) {
       this.blend = {
         position: from.position.clone(),
@@ -196,6 +219,8 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
       };
       this.applyBlend();
     } else this.blend = undefined;
+    this.dispatchEvent(_changeEvent);
+    if (modeChanged) this.dispatchEvent({ type: "modechange", mode });
   };
 
   // Camera transformation before a mode change and how far the camera has moved to the new one, see setMode.
@@ -463,6 +488,7 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
 
   /**
    * Updates camera position and orientation. This should be called in the tick loop.
+   * Dispatches a change event if the camera has moved and a rest event once it has come to rest.
    * @param delta time difference in seconds since last update
    * @returns whether rerender is needed
    */
@@ -480,6 +506,8 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
     if (!this.needsUpdate) this.transitionRunning = false;
     this.controlStateHandler.applyToObject(this.object);
     if (this.updateBlend(delta)) this.needsUpdate = true;
+    this.dispatchEvent(_changeEvent);
+    if (!this.needsUpdate) this.dispatchEvent(_restEvent);
     return true;
   }
 
@@ -487,12 +515,14 @@ export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
    * Adpots immediate changes to the camera and propagates via the update method that a rerender is needed.
    * This function is called when changes are made without user interaction.
    * @param transition if the camera should smooth damp tow the default state (or jump if false)
+   * @param notify if a change event should be dispatched when jumping
    */
-  private internalUpdate = (transition = false) => {
+  private internalUpdate = (transition = false, notify = true) => {
     if (!transition) {
       this.controlStateHandler.jumpToEnd();
       // Makes it redundant to call update if rerendering is happening anyway, for example initially.
       this.controlStateHandler.applyToObject(this.object);
+      if (notify) this.dispatchEvent(_changeEvent);
     } else this.transitionRunning = true;
     this.needsUpdate = true;
   };
