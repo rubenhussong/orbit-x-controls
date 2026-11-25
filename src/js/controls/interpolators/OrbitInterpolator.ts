@@ -34,10 +34,13 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
   private velocityPhi = { value: 0 };
   private velocityTheta = { value: 0 };
   private velocityDistance = { value: 0 };
-  private velocityUp = new Vector3();
+  private velocityUp = { value: 0 }; // angular velocity
 
   // ===== Helper Variables
   private reuseVec = new Vector3();
+  private reuseForward = new Vector3();
+  private reuseE1 = new Vector3();
+  private reuseE2 = new Vector3();
 
   constructor(object?: Object3D, orbitCenter?: Vector3Like) {
     super();
@@ -158,6 +161,54 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
    */
   update = (smoothTime: number, deltaTime: number) => {
     let needsUpdate = false;
+    // UpVector
+    // Rotates on the unit sphere to stay normalized. The setter maintains the camera position.
+    if (approxEqualVec3(this.now.up, this.end.up)) {
+      const arrived = !this.now.up.equals(this.end.up);
+      this.velocityUp.value = 0;
+      this.now.up = this.end.up;
+      // Prevents an extra full turn, as theta was converted to the damped up vector on the way.
+      if (arrived) this.now.alignTheta(this.end.theta);
+    } else {
+      // Interpolates in spherical coordinates around the viewing direction, so that the up vector never crosses it.
+      // To the viewer, this looks like a roll of the camera.
+      const forward = this.reuseForward.copy(this.now.forward);
+      const e1 = this.reuseE1 // Projection of end up, so that its azimuth is 0
+        .copy(this.end.up)
+        .addScaledVector(forward, -this.end.up.dot(forward));
+      if (approxZeroVec3(e1)) e1.copy(this.now.right);
+      e1.normalize();
+      const e2 = this.reuseE2.crossVectors(forward, e1);
+      const alphaNow = forward.angleTo(this.now.up);
+      const alphaEnd = forward.angleTo(this.end.up);
+      const betaNow = Math.atan2(this.now.up.dot(e2), this.now.up.dot(e1));
+      const remaining = Math.hypot(alphaEnd - alphaNow, betaNow);
+      const newRemaining = SmoothDamper.damp(
+        remaining,
+        0,
+        this.velocityUp,
+        smoothTime,
+        Infinity,
+        deltaTime
+      );
+      const k = remaining > 0 ? newRemaining / remaining : 0;
+      const alpha = alphaEnd - k * (alphaEnd - alphaNow);
+      const beta = k * betaNow;
+      this.now.up = this.reuseVec
+        .copy(e1)
+        .multiplyScalar(Math.cos(beta))
+        .addScaledVector(e2, Math.sin(beta))
+        .multiplyScalar(Math.sin(alpha))
+        .addScaledVector(forward, Math.cos(alpha));
+      needsUpdate = true;
+    }
+    // Target angles
+    // The end angles refer to the end up vector. While the up vector is damped, they are converted to the now up vector.
+    let endPhi = this.end.phi;
+    let endTheta = this.end.theta;
+    if (!this.now.up.equals(this.end.up)) {
+      ({ phi: endPhi, theta: endTheta } = this.now.getAnglesOf(this.end.offset));
+    }
     // OrbitCenter
     if (approxEqualVec3(this.now.orbitCenter, this.end.orbitCenter)) {
       this.velocityOrbitCenter.set(0, 0, 0);
@@ -175,13 +226,13 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
       needsUpdate = true;
     }
     // Phi
-    if (approxEqual(this.now.phi, this.end.phi)) {
+    if (approxEqual(this.now.phi, endPhi)) {
       this.velocityPhi.value = 0;
-      this.now.phi = this.end.phi;
+      this.now.phi = endPhi;
     } else {
       this.now.phi = SmoothDamper.damp(
         this.now.phi,
-        this.end.phi,
+        endPhi,
         this.velocityPhi,
         smoothTime,
         Infinity,
@@ -190,13 +241,13 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
       needsUpdate = true;
     }
     // Theta
-    if (approxEqual(this.now.theta, this.end.theta)) {
+    if (approxEqual(this.now.theta, endTheta)) {
       this.velocityTheta.value = 0;
-      this.now.theta = this.end.theta;
+      this.now.theta = endTheta;
     } else {
       this.now.theta = SmoothDamper.damp(
         this.now.theta,
-        this.end.theta,
+        endTheta,
         this.velocityTheta,
         smoothTime,
         Infinity,
@@ -216,22 +267,6 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
         smoothTime,
         Infinity,
         deltaTime
-      );
-      needsUpdate = true;
-    }
-    // UpVector
-    if (approxEqualVec3(this.now.up, this.end.up)) {
-      this.velocityUp.set(0, 0, 0);
-      this.now.up = this.end.up;
-    } else {
-      this.now.up = SmoothDamper.dampVec3(
-        this.now.up,
-        this.end.up,
-        this.velocityUp,
-        smoothTime,
-        Infinity,
-        deltaTime,
-        this.reuseVec
       );
       needsUpdate = true;
     }
@@ -255,6 +290,8 @@ class OrbitState extends ControlState {
   // ===== Helper Variables
   private _tangent = AXIS.Y.clone(); // Local "up" dependent on actual position
   private reuseMatrix = new Matrix4();
+  private reuseSpherical = new Spherical();
+  private reuseOffset = new Vector3();
 
   constructor() {
     super();
@@ -399,7 +436,7 @@ class OrbitState extends ControlState {
    * @param v new up vector
    */
   set up(v: Vector3Like) {
-    if (approxEqualVec3(this.up, v)) return;
+    if (this.up.equals(v as Vector3)) return;
     const offset = this.offset.clone();
     this._up.copy(v);
     this.fromUpToY.setFromUnitVectors(this.up, AXIS.Y);
@@ -438,6 +475,29 @@ class OrbitState extends ControlState {
     const offset = position.clone().sub(target).setLength(this.distance);
     const orbitCenter = position.clone().sub(offset);
     this.setOrbitCenter(orbitCenter);
+  };
+
+  /**
+   * Converts an offset to angles relative to the up vector of this state.
+   * Theta is chosen to be as close as possible to the current theta.
+   * @param offset position relative to orbit center
+   * @returns phi and theta
+   */
+  getAnglesOf = (offset: Vector3) => {
+    const s = this.reuseSpherical.setFromVector3(
+      this.reuseOffset.copy(offset).applyQuaternion(this.fromUpToY)
+    );
+    s.makeSafe();
+    const turns = Math.round((this.theta - s.theta) / (2 * Math.PI));
+    return { phi: s.phi, theta: s.theta + turns * 2 * Math.PI };
+  };
+
+  /**
+   * Adds full turns to theta to be as close as possible to a reference angle. The position does not change.
+   * @param reference angle to align to
+   */
+  alignTheta = (reference: number) => {
+    this.theta += Math.round((reference - this.theta) / (2 * Math.PI)) * 2 * Math.PI;
   };
 
   // ==================== S A V E   S T A T E

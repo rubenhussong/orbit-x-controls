@@ -185,8 +185,6 @@ describe("setMode", async () => {
     expect(camera.up.angleTo(new Vector3(0, 0, 1))).toBeCloseTo(0);
   });
 
-  // Only checks start and end of the transition, not the path in between.
-  // Known issue: in 'orbit', a changing up vector makes the camera swing around the orbit center on the way.
   it("should smooth damp with transition", async () => {
     const { camera, controls } = setup("isotropic");
     const target = new Vector3(0, 0, 1);
@@ -196,4 +194,57 @@ describe("setMode", async () => {
     settle(controls);
     expect(camera.up.angleTo(target)).toBeCloseTo(0);
   });
+});
+
+describe("update", async () => {
+  const modes: ControlMode[] = ["orbit", "isotropic", "grounded"];
+  for (const from of modes) {
+    for (const to of modes) {
+      it(`should come to rest after a transition from ${from} to ${to}`, async () => {
+        const camera = new PerspectiveCamera();
+        const controls = new OrbitXControls(mockDomElement, camera, from);
+        controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+        controls.setPosition({ x: 3, y: 4, z: 5 });
+        controls.setMode(to, { up: { x: 0, y: 0, z: 1 }, transition: true });
+        let frames = 0;
+        while (controls.update(1 / 60) && frames < 600) frames++;
+        expect(frames).toBeLessThan(600); // at rest within 10 seconds
+      });
+    }
+  }
+});
+
+describe("transition path", async () => {
+  const cases: [ControlMode, ControlMode][] = [
+    ["isotropic", "orbit"],
+    ["orbit", "orbit"],
+    ["orbit", "isotropic"],
+    ["isotropic", "isotropic"],
+  ];
+  for (const [from, to] of cases) {
+    for (const up of [
+      { x: 0, y: 0, z: 1 },
+      { x: 0, y: -1, z: 0 }, // antiparallel to the default up
+    ]) {
+      it(`should keep the position and rotate smoothly from ${from} to ${to} with up ${up.x},${up.y},${up.z}`, async () => {
+        const camera = new PerspectiveCamera();
+        const controls = new OrbitXControls(mockDomElement, camera, from);
+        controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+        controls.setPosition({ x: 3, y: 4, z: 5 });
+        const position = camera.position.clone();
+        controls.setMode(to, { up, transition: true });
+        let maxDeviation = 0;
+        let maxStep = 0;
+        let last = camera.quaternion.clone();
+        for (let i = 0; i < 120; i++) {
+          controls.update(1 / 60);
+          maxDeviation = Math.max(maxDeviation, camera.position.distanceTo(position));
+          maxStep = Math.max(maxStep, camera.quaternion.angleTo(last));
+          last = camera.quaternion.clone();
+        }
+        expect(maxDeviation).toBeCloseTo(0);
+        expect(maxStep).toBeLessThan(Math.PI / 4); // no sudden flip
+      });
+    }
+  }
 });
