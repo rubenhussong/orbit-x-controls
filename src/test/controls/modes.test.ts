@@ -15,7 +15,7 @@ const createDomElement = () => {
 const setup = (mode: ControlMode) => {
   const domElement = createDomElement();
   const camera = new PerspectiveCamera();
-  const controls = new OrbitXControls(domElement, camera, mode);
+  const controls = new OrbitXControls(camera, domElement, mode);
   controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
   controls.setPosition({ x: 0, y: 0, z: 10 });
   return { domElement, camera, controls };

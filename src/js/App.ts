@@ -50,7 +50,7 @@ const stats = createStats();
 const renderer = createRenderer();
 
 const camera = createPerspectiveCamera(0, 0, 10);
-const controls = new OrbitXControls(renderer.domElement, camera, settings.mode);
+const controls = new OrbitXControls(camera, renderer.domElement, settings.mode);
 setDistanceLimits();
 controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
 controls.setPosition({ x: 0, y: 4, z: 10 });

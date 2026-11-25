@@ -8,7 +8,7 @@ const setup = () => {
   const element = document.createElement("div");
   Object.defineProperty(element, "clientHeight", { value: 500 });
   const camera = new PerspectiveCamera();
-  const controls = new OrbitXControls(element, camera, "orbit");
+  const controls = new OrbitXControls(camera, element, "orbit");
   controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
   controls.setPosition({ x: 0, y: 0, z: 10 });
   controls.dollySpeed.orbit = 1;

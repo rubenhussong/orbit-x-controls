@@ -1,4 +1,10 @@
-import { PerspectiveCamera, Quaternion, Vector3, Vector3Like } from "three";
+import {
+  Controls,
+  PerspectiveCamera,
+  Quaternion,
+  Vector3,
+  Vector3Like,
+} from "three";
 import { InteractionHandler } from "./InteractionHandler";
 import { ControlMode } from "./types/ControlMode";
 import { ModeSpecificSetting } from "./utils/ModeSpecificSetting";
@@ -12,10 +18,9 @@ import { approxEqual } from "./utils/mathUtils";
 
 /**
  * Custom camera controls with different modes that define the transformations triggered by user interaction.
+ * Extends three's Controls like OrbitControls: object is the camera, domElement the element listened to.
  */
-export class OrbitXControls {
-  private camera: PerspectiveCamera;
-  private domElement: HTMLElement;
+export class OrbitXControls extends Controls<{}, PerspectiveCamera> {
   private _mode: ControlMode;
   private controlStateHandler: ControlStateInterpolator<any>;
 
@@ -28,15 +33,28 @@ export class OrbitXControls {
     pan: (deltaX, deltaY) => this.pan(deltaX, deltaY),
   });
 
-  protected enabled = false;
+  // Backing field of enabled, see constructor.
+  private _enabled = false;
 
+  /**
+   * @param camera the controlled camera
+   * @param domElement element to listen to user interaction, usually the canvas of the renderer. Can also be set later with connect.
+   * @param mode initial control mode
+   */
   constructor(
-    domElement: HTMLElement,
     camera: PerspectiveCamera,
+    domElement: HTMLElement | SVGElement | null = null,
     mode: ControlMode = "orbit"
   ) {
-    this.domElement = domElement;
-    this.camera = camera;
+    super(camera, domElement);
+    // Controls defines enabled as a plain property. It is turned into an accessor,
+    // so that setting it (e.g. by drei) has the same effect as enable and disable.
+    Object.defineProperty(this, "enabled", {
+      get: () => this._enabled,
+      set: (v: boolean) => (v ? this.enable() : this.disable()),
+      configurable: true,
+      enumerable: true,
+    });
     this._mode = mode;
     this.controlStateHandler = this.getAnimatorFromMode(mode);
     this.defaultState = new SaveState();
@@ -153,8 +171,8 @@ export class OrbitXControls {
     // The new state is applied immediately. A transition blends the camera from its old to its new transformation.
     // This is one movement, also if the view direction changes, e.g. from 'grounded' to the orbit center.
     const from = this.blend ?? {
-      position: this.camera.position.clone(),
-      quaternion: this.camera.quaternion.clone(),
+      position: this.object.position.clone(),
+      quaternion: this.object.quaternion.clone(),
     };
     const saveState = this.controlStateHandler.saveState();
     if (this.mode !== mode) {
@@ -194,10 +212,10 @@ export class OrbitXControls {
     if (!this.blend) return;
     const { position, quaternion, progress } = this.blend;
     // Copies of the target, because lerpVectors and slerpQuaternions start by overwriting the camera values.
-    const targetPosition = this.blendTargetPosition.copy(this.camera.position);
-    const targetQuaternion = this.blendTargetQuaternion.copy(this.camera.quaternion);
-    this.camera.position.lerpVectors(position, targetPosition, progress);
-    this.camera.quaternion.slerpQuaternions(quaternion, targetQuaternion, progress);
+    const targetPosition = this.blendTargetPosition.copy(this.object.position);
+    const targetQuaternion = this.blendTargetQuaternion.copy(this.object.quaternion);
+    this.object.position.lerpVectors(position, targetPosition, progress);
+    this.object.quaternion.slerpQuaternions(quaternion, targetQuaternion, progress);
   };
   private blendTargetPosition = new Vector3();
   private blendTargetQuaternion = new Quaternion();
@@ -225,12 +243,12 @@ export class OrbitXControls {
     mode: ControlMode
   ): ControlStateInterpolator<any> => {
     if (mode === "isotropic") {
-      return new IsotropicInterpolator(this.camera);
+      return new IsotropicInterpolator(this.object);
     }
     if (mode === "grounded") {
-      return new GroundedInterpolator(this.camera);
+      return new GroundedInterpolator(this.object);
     }
-    return new OrbitInterpolator(this.camera);
+    return new OrbitInterpolator(this.object);
   };
 
   // ==================== E N A B L E  &  D I S A B L E
@@ -241,11 +259,11 @@ export class OrbitXControls {
    * This might lead to an update of the orbit center.
    */
   enable = () => {
-    if (this.enabled) return;
-    this.controlStateHandler.setFromObject(this.camera);
+    if (this._enabled) return;
+    this.controlStateHandler.setFromObject(this.object);
     this.controlStateHandler.jumpToEnd();
-    this.input.connect(this.domElement);
-    this.enabled = true;
+    if (this.domElement) this.input.connect(this.domElement as HTMLElement); // SVG elements dispatch the same events
+    this._enabled = true;
   };
 
   /**
@@ -253,11 +271,38 @@ export class OrbitXControls {
    * Stops smoothDamp and discards all future changes.
    */
   disable = () => {
-    if (!this.enabled) return;
-    this.enabled = false;
+    if (!this._enabled) return;
+    this._enabled = false;
     this.input.disconnect();
     this.controlStateHandler.discardEnd();
   };
+
+  // ==================== C O N N E C T
+
+  /**
+   * Starts listening to user interaction on an element (if enabled).
+   * @param element usually the canvas of the renderer
+   */
+  connect(element: HTMLElement | SVGElement) {
+    super.connect(element);
+    if (this._enabled) this.input.connect(element as HTMLElement); // SVG elements dispatch the same events
+  }
+
+  /**
+   * Stops listening to user interaction. The element is kept and can be connected again.
+   */
+  disconnect() {
+    this.input.disconnect();
+  }
+
+  /**
+   * Removes all event listeners. Call this when the controls are not needed anymore.
+   */
+  dispose() {
+    this.disconnect();
+    this.blend = undefined;
+    this.needsUpdate = false;
+  }
 
   // ==================== I N P U T   S E T T I N G S
   // Forwarded to the InteractionHandler.
@@ -298,8 +343,8 @@ export class OrbitXControls {
    * @param c the new camera
    */
   setCamera = (c: PerspectiveCamera) => {
-    this.camera = c;
-    this.controlStateHandler.setFromObject(this.camera);
+    this.object = c;
+    this.controlStateHandler.setFromObject(this.object);
   };
 
   /**
@@ -406,7 +451,7 @@ export class OrbitXControls {
 
   // Triggered by user interaction, the camera is panned according to the active mode.
   protected pan = (deltaX: number, deltaY: number) => {
-    const fov = this.camera.getEffectiveFOV();
+    const fov = this.object.getEffectiveFOV();
     const panScale = this.panSpeed[this.mode];
     this.controlStateHandler.panUp(-deltaY * panScale, fov);
     this.controlStateHandler.panLeft(deltaX * panScale, fov);
@@ -421,7 +466,7 @@ export class OrbitXControls {
    * @param delta time difference in seconds since last update
    * @returns whether rerender is needed
    */
-  update = (delta: number) => {
+  update(delta: number) {
     if (!this.needsUpdate) return false;
     const smoothTime = this.transitionRunning
       ? this.transitionTime
@@ -433,10 +478,10 @@ export class OrbitXControls {
       this.needsUpdate = false;
     }
     if (!this.needsUpdate) this.transitionRunning = false;
-    this.controlStateHandler.applyToObject(this.camera);
+    this.controlStateHandler.applyToObject(this.object);
     if (this.updateBlend(delta)) this.needsUpdate = true;
     return true;
-  };
+  }
 
   /**
    * Adpots immediate changes to the camera and propagates via the update method that a rerender is needed.
@@ -447,7 +492,7 @@ export class OrbitXControls {
     if (!transition) {
       this.controlStateHandler.jumpToEnd();
       // Makes it redundant to call update if rerendering is happening anyway, for example initially.
-      this.controlStateHandler.applyToObject(this.camera);
+      this.controlStateHandler.applyToObject(this.object);
     } else this.transitionRunning = true;
     this.needsUpdate = true;
   };

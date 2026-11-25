@@ -7,7 +7,7 @@ const mockDomElement = document.createElement("div");
 
 describe("isotropic setPosition", async () => {
   const camera = new PerspectiveCamera();
-  const controls = new OrbitXControls(mockDomElement, camera, "isotropic");
+  const controls = new OrbitXControls(camera, mockDomElement, "isotropic");
 
   it("should set to position", async () => {
     const position = { x: 5, y: -10, z: 20 };
@@ -30,7 +30,7 @@ describe("isotropic setPosition", async () => {
 
 describe("isotropic enable", async () => {
   const camera = new PerspectiveCamera();
-  const controls = new OrbitXControls(mockDomElement, camera, "isotropic");
+  const controls = new OrbitXControls(camera, mockDomElement, "isotropic");
   controls.disable();
 
   it("should not change camera transformation", async () => {
@@ -53,8 +53,8 @@ describe("isotropic enable", async () => {
 describe("mode switch", async () => {
   it("should change the mode", async () => {
     const controls = new OrbitXControls(
-      mockDomElement,
       new PerspectiveCamera(),
+      mockDomElement,
       "orbit"
     );
     controls.mode = "isotropic";
@@ -69,7 +69,7 @@ describe("mode switch", async () => {
       if (from === to) continue;
       it(`should keep the camera position from ${from} to ${to}`, async () => {
         const camera = new PerspectiveCamera();
-        const controls = new OrbitXControls(mockDomElement, camera, from);
+        const controls = new OrbitXControls(camera, mockDomElement, from);
         controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
         controls.setPosition({ x: 3, y: 4, z: 5 });
         const pos = camera.position.clone();
@@ -97,7 +97,7 @@ describe("setMode", async () => {
   };
   const setup = (mode: ControlMode) => {
     const camera = new PerspectiveCamera();
-    const controls = new OrbitXControls(mockDomElement, camera, mode);
+    const controls = new OrbitXControls(camera, mockDomElement, mode);
     controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
     controls.setPosition({ x: 3, y: 4, z: 5 });
     return { camera, controls };
@@ -204,7 +204,7 @@ describe("update", async () => {
     for (const to of modes) {
       it(`should come to rest after a transition from ${from} to ${to}`, async () => {
         const camera = new PerspectiveCamera();
-        const controls = new OrbitXControls(mockDomElement, camera, from);
+        const controls = new OrbitXControls(camera, mockDomElement, from);
         controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
         controls.setPosition({ x: 3, y: 4, z: 5 });
         controls.setMode(to, { up: { x: 0, y: 0, z: 1 }, transition: true });
@@ -230,7 +230,7 @@ describe("transition path", async () => {
     ]) {
       it(`should keep the position and rotate smoothly from ${from} to ${to} with up ${up.x},${up.y},${up.z}`, async () => {
         const camera = new PerspectiveCamera();
-        const controls = new OrbitXControls(mockDomElement, camera, from);
+        const controls = new OrbitXControls(camera, mockDomElement, from);
         controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
         controls.setPosition({ x: 3, y: 4, z: 5 });
         const position = camera.position.clone();
@@ -256,7 +256,7 @@ describe("transition from grounded", async () => {
     for (const up of [undefined, { x: 0, y: 0, z: 1 }]) {
       it(`should move in one smooth movement to ${to}${up ? " with up" : ""}`, async () => {
         const camera = new PerspectiveCamera();
-        const controls = new OrbitXControls(mockDomElement, camera, "grounded");
+        const controls = new OrbitXControls(camera, mockDomElement, "grounded");
         controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
         controls.setPosition({ x: 3, y: 4, z: 5 });
         controls.lookAt({ x: 10, y: 4, z: 0 }); // look away from the center
@@ -286,7 +286,7 @@ describe("transition from grounded", async () => {
 
   it("should switch immediately without transition", async () => {
     const camera = new PerspectiveCamera();
-    const controls = new OrbitXControls(mockDomElement, camera, "grounded");
+    const controls = new OrbitXControls(camera, mockDomElement, "grounded");
     controls.setMode("orbit");
     expect(controls.mode).toBe("orbit");
   });
@@ -296,7 +296,7 @@ describe("transitionTime", async () => {
   // Frames until the camera has turned 95 % of the way.
   const framesTo95 = (configure: (c: OrbitXControls) => void, call: (c: OrbitXControls) => void) => {
     const camera = new PerspectiveCamera();
-    const controls = new OrbitXControls(mockDomElement, camera, "orbit");
+    const controls = new OrbitXControls(camera, mockDomElement, "orbit");
     controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
     controls.setPosition({ x: 3, y: 4, z: 5 });
     configure(controls);
@@ -344,7 +344,7 @@ describe("transitionTime for other methods", async () => {
   for (const mode of ["orbit", "isotropic", "grounded"] as ControlMode[]) {
     it(`should apply to setPosition with transition in ${mode}`, async () => {
       const camera = new PerspectiveCamera();
-      const controls = new OrbitXControls(element, camera, mode);
+      const controls = new OrbitXControls(camera, element, mode);
       controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
       controls.setPosition({ x: 0, y: 0, z: 10 });
       controls.transitionTime = 1;
@@ -358,7 +358,7 @@ describe("transitionTime for other methods", async () => {
 
   it("should switch back to smoothTime on user input", async () => {
     const camera = new PerspectiveCamera();
-    const controls = new OrbitXControls(element, camera, "orbit");
+    const controls = new OrbitXControls(camera, element, "orbit");
     controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
     controls.setPosition({ x: 0, y: 0, z: 10 });
     controls.transitionTime = 10;
