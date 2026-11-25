@@ -35,11 +35,13 @@ export const approxEqualQuat = (
   b: Quaternion,
   error = EPSILON
 ) => {
+  // q and -q describe the same rotation
+  const sign = a.dot(b) < 0 ? -1 : 1;
   return (
-    approxEqual(a.x, b.x, error) &&
-    approxEqual(a.y, b.y, error) &&
-    approxEqual(a.z, b.z, error) &&
-    approxEqual(a.w, b.w, error)
+    approxEqual(a.x, sign * b.x, error) &&
+    approxEqual(a.y, sign * b.y, error) &&
+    approxEqual(a.z, sign * b.z, error) &&
+    approxEqual(a.w, sign * b.w, error)
   );
 };
 
