@@ -325,3 +325,48 @@ describe("transitionTime", async () => {
     expect(slow).toBeGreaterThan(5 * fast);
   });
 });
+
+describe("transitionTime for other methods", async () => {
+  const element = document.createElement("div");
+  Object.defineProperty(element, "clientHeight", { value: 500 });
+
+  // Seconds until the camera has moved 95 % of the way to the new position.
+  const secondsTo95 = (controls: OrbitXControls, camera: PerspectiveCamera, target: Vector3) => {
+    const start = camera.position.clone();
+    const total = start.distanceTo(target);
+    for (let i = 1; i <= 600; i++) {
+      controls.update(1 / 60);
+      if (camera.position.distanceTo(start) >= 0.95 * total) return i / 60;
+    }
+    return Infinity;
+  };
+
+  for (const mode of ["orbit", "isotropic", "grounded"] as ControlMode[]) {
+    it(`should apply to setPosition with transition in ${mode}`, async () => {
+      const camera = new PerspectiveCamera();
+      const controls = new OrbitXControls(element, camera, mode);
+      controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+      controls.setPosition({ x: 0, y: 0, z: 10 });
+      controls.transitionTime = 1;
+      const target = new Vector3(0, 0, 20);
+      controls.setPosition(target, true);
+      const seconds = secondsTo95(controls, camera, target);
+      expect(seconds).toBeGreaterThan(2);
+      expect(seconds).toBeLessThan(2.8);
+    });
+  }
+
+  it("should switch back to smoothTime on user input", async () => {
+    const camera = new PerspectiveCamera();
+    const controls = new OrbitXControls(element, camera, "orbit");
+    controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+    controls.setPosition({ x: 0, y: 0, z: 10 });
+    controls.transitionTime = 10;
+    controls.setPosition({ x: 0, y: 0, z: 20 }, true);
+    controls.update(1 / 60);
+    element.dispatchEvent(new WheelEvent("wheel", { deltaY: 1 }));
+    // With smoothTime 0.1, the camera arrives within a second instead of more than 20 seconds.
+    for (let i = 0; i < 60; i++) controls.update(1 / 60);
+    expect(controls.update(1 / 60)).toBe(false);
+  });
+});

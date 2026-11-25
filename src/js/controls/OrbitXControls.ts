@@ -40,9 +40,12 @@ export class OrbitXControls extends InteractionHandler {
   dampingEnabled = true;
   minDollyStep = 5e-3;
 
-  // Approx. time in seconds to reach the new state in a mode change with transition, see setMode.
-  // About 2.4 times this value until the movement looks finished.
+  // Approx. time in seconds to reach the new state in methods called with transition (setMode, setPosition, loadState, ...).
+  // About 2.4 times this value until the movement looks finished. User input uses smoothTime instead.
   transitionTime = 0.3;
+
+  // If a transition triggered by a method call is running, see transitionTime.
+  private transitionRunning = false;
 
   dollySpeed = new ModeSpecificSetting<number>({
     isotropic: 0.3,
@@ -329,6 +332,7 @@ export class OrbitXControls extends InteractionHandler {
     const rotateScale = Math.PI * this.rotateSpeed[this.mode];
     this.controlStateHandler.rotateUp(deltaY * rotateScale);
     this.controlStateHandler.rotateLeft(-deltaX * rotateScale);
+    this.transitionRunning = false; // User input is damped with smoothTime
     this.needsUpdate = true;
   };
 
@@ -341,6 +345,7 @@ export class OrbitXControls extends InteractionHandler {
       this.minDistance[this.mode],
       this.maxDistance[this.mode]
     );
+    this.transitionRunning = false;
     this.needsUpdate = true;
   };
 
@@ -350,6 +355,7 @@ export class OrbitXControls extends InteractionHandler {
     const panScale = this.panSpeed[this.mode];
     this.controlStateHandler.panUp(-deltaY * panScale, fov);
     this.controlStateHandler.panLeft(deltaX * panScale, fov);
+    this.transitionRunning = false;
     this.needsUpdate = true;
   };
 
@@ -362,13 +368,16 @@ export class OrbitXControls extends InteractionHandler {
    */
   update = (delta: number) => {
     if (!this.needsUpdate) return false;
-    const smoothTime = this.smoothTime[this.mode];
+    const smoothTime = this.transitionRunning
+      ? this.transitionTime
+      : this.smoothTime[this.mode];
     if (this.dampingEnabled) {
       this.needsUpdate = this.controlStateHandler.update(smoothTime, delta);
     } else {
       this.controlStateHandler.jumpToEnd();
       this.needsUpdate = false;
     }
+    if (!this.needsUpdate) this.transitionRunning = false;
     this.controlStateHandler.applyToObject(this.camera);
     if (this.updateBlend(delta)) this.needsUpdate = true;
     return true;
@@ -384,7 +393,7 @@ export class OrbitXControls extends InteractionHandler {
       this.controlStateHandler.jumpToEnd();
       // Makes it redundant to call update if rerendering is happening anyway, for example initially.
       this.controlStateHandler.applyToObject(this.camera);
-    }
+    } else this.transitionRunning = true;
     this.needsUpdate = true;
   };
 }
