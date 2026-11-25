@@ -16,8 +16,13 @@ const setup = () => {
 };
 
 // Sends wheel events with a time between them and returns the resulting dolly steps.
-const scroll = (deltas: number[], msBetween: number) => {
+const scroll = (
+  deltas: number[],
+  msBetween: number,
+  configure: (c: OrbitXControls) => void = () => {}
+) => {
   const { element, camera, controls } = setup();
+  configure(controls);
   let time = 10000;
   vi.spyOn(performance, "now").mockImplementation(() => time);
   for (const deltaY of deltas) {
@@ -62,5 +67,18 @@ describe("wheel", () => {
     for (let i = 0; i < 300; i++) controls.update(1 / 60);
     const steps = Math.log(camera.position.length() / 10) / Math.log(1.05);
     expect(steps).toBeCloseTo(5 + 16 / 6);
+  });
+
+  it("uses the wheel settings", () => {
+    const slowNotches = scroll([4, 4, 4], 500, (c) => {
+      c.wheel.minStepsAfterPause = 2;
+    });
+    expect(slowNotches).toBeCloseTo(3 * 2);
+    const stream = scroll(new Array(11).fill(6), 16, (c) => {
+      c.wheel.pixelsPerStep = 3;
+      c.wheel.maxStepsPerEvent = 10;
+      c.wheel.minStepsAfterPause = 0;
+    });
+    expect(stream).toBeCloseTo(11 * 2);
   });
 });

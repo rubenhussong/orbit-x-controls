@@ -1,20 +1,8 @@
 // Event button value for mouse keys
 const MOUSE = { LEFT: 0, RIGHT: 2 };
 
-/**
- * Wheel events differ a lot between devices and browsers.
- * Trackpads send a dense stream of small deltas. Mouse wheels send single events per notch,
- * whose size depends on the browser (Safari: about 4px for a slow notch, hundreds of pixels when spinning fast).
- * Each event is converted into dolly steps based on its size. An event after a pause is most likely a mouse wheel notch
- * and gets a minimum number of steps.
- */
-const WHEEL = {
-  PIXELS_PER_STEP: 6, // a typical trackpad event
-  MIN_STEPS_AFTER_PAUSE: 5,
-  MAX_STEPS: 5,
-  PAUSE: 100, // ms
-  LINE_HEIGHT: 16, // px, for deltaMode DOM_DELTA_LINE
-};
+// Pixels per line for wheel events with deltaMode DOM_DELTA_LINE
+const WHEEL_LINE_HEIGHT = 16;
 
 // To store the active action
 const ACTION = {
@@ -45,6 +33,19 @@ export abstract class InteractionHandler {
   // ==================== A P I
 
   dollyEnabled = true;
+
+  /**
+   * Converts wheel events into dolly steps.
+   * Wheel events differ a lot between devices and browsers. Trackpads send a dense stream of small deltas.
+   * Mouse wheels send single events per notch, whose size depends on the browser (Safari: about 4px for a slow notch, hundreds of pixels when spinning fast).
+   * Each event counts by its size. An event after a pause is most likely a mouse wheel notch and gets a minimum number of steps.
+   */
+  wheel = {
+    pixelsPerStep: 6, // a typical trackpad event
+    minStepsAfterPause: 5, // a mouse wheel notch
+    maxStepsPerEvent: 5,
+    pause: 100, // ms
+  };
   rotateEnabled = true;
   panEnabled = true;
 
@@ -271,14 +272,15 @@ export abstract class InteractionHandler {
     this.action = ACTION.NONE;
   };
 
-  // Converts a wheel event into dolly steps, see WHEEL.
+  // Converts a wheel event into dolly steps, see wheel.
   private getWheelSteps = (e: WheelEvent) => {
-    const pixelsPerUnit = [1, WHEEL.LINE_HEIGHT, this.domElement.clientHeight];
+    const { pixelsPerStep, minStepsAfterPause, maxStepsPerEvent, pause } = this.wheel;
+    const pixelsPerUnit = [1, WHEEL_LINE_HEIGHT, this.domElement.clientHeight];
     const pixels = e.deltaY * (pixelsPerUnit[e.deltaMode] ?? 1);
-    let steps = Math.min(Math.abs(pixels) / WHEEL.PIXELS_PER_STEP, WHEEL.MAX_STEPS);
+    let steps = Math.min(Math.abs(pixels) / pixelsPerStep, maxStepsPerEvent);
     const now = performance.now();
-    if (now - this.lastWheelTime > WHEEL.PAUSE) {
-      steps = Math.max(steps, WHEEL.MIN_STEPS_AFTER_PAUSE);
+    if (now - this.lastWheelTime > pause) {
+      steps = Math.max(steps, minStepsAfterPause);
     }
     this.lastWheelTime = now;
     return Math.sign(pixels) * steps;

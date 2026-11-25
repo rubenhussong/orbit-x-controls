@@ -208,6 +208,13 @@ function createGui() {
   inputFolder.add(controls, "dollyEnabled").name("dolly");
   inputFolder.add(controls, "dampingEnabled").name("damping");
 
+  const wheelFolder = gui.addFolder("Wheel");
+  wheelFolder.add(controls.wheel, "pixelsPerStep", 1, 50, 1).name("pixels per step");
+  wheelFolder.add(controls.wheel, "minStepsAfterPause", 0, 20, 1).name("steps per notch");
+  wheelFolder.add(controls.wheel, "maxStepsPerEvent", 1, 20, 1).name("max steps per event");
+  wheelFolder.add(controls.wheel, "pause", 0, 500, 10).name("pause (ms)");
+  wheelFolder.close();
+
   return gui;
 }
 
