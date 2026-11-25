@@ -185,7 +185,7 @@ function addPoleAndEquator(radius: number) {
 
 // ==================== G U I
 function createGui() {
-  const gui = new GUI({ title: "OrbitXControls" });
+  const gui = new GUI({ title: "Orbit X Controls" });
 
   const modeFolder = gui.addFolder("Mode");
   modeFolder
