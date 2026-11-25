@@ -40,6 +40,10 @@ export class OrbitXControls extends InteractionHandler {
   dampingEnabled = true;
   minDollyStep = 5e-3;
 
+  // Approx. time in seconds to reach the new state in a mode change with transition, see setMode.
+  // About 2.4 times this value until the movement looks finished.
+  transitionTime = 0.3;
+
   dollySpeed = new ModeSpecificSetting<number>({
     isotropic: 0.3,
     grounded: 0.1,
@@ -122,10 +126,15 @@ export class OrbitXControls extends InteractionHandler {
    *   Defaults to the current camera up. If the camera looks along it (e.g. coming from 'grounded'), the former viewing direction along the surface becomes up.
    *   Can also be used without changing the mode.
    * @param options.transition if the camera should move to its new state in one smooth movement (or jump if false)
+   * @param options.transitionTime smooth time of the transition in seconds (default: transitionTime)
    */
   setMode = (
     mode: ControlMode,
-    { up, transition = false }: { up?: Vector3Like; transition?: boolean } = {}
+    {
+      up,
+      transition = false,
+      transitionTime = this.transitionTime,
+    }: { up?: Vector3Like; transition?: boolean; transitionTime?: number } = {}
   ) => {
     if (this.mode === mode && !up) return;
     // The new state is applied immediately. A transition blends the camera from its old to its new transformation.
@@ -151,6 +160,7 @@ export class OrbitXControls extends InteractionHandler {
         position: from.position.clone(),
         quaternion: from.quaternion.clone(),
         progress: 0,
+        smoothTime: transitionTime,
         velocity: { value: 0 },
       };
       this.applyBlend();
@@ -159,6 +169,7 @@ export class OrbitXControls extends InteractionHandler {
 
   // Camera transformation before a mode change and how far the camera has moved to the new one, see setMode.
   private blend?: {
+    smoothTime: number;
     position: Vector3;
     quaternion: Quaternion;
     progress: number;
@@ -179,13 +190,13 @@ export class OrbitXControls extends InteractionHandler {
   private blendTargetQuaternion = new Quaternion();
 
   // Advances the blend. Returns if it needs another update.
-  private updateBlend = (smoothTime: number, delta: number) => {
+  private updateBlend = (delta: number) => {
     if (!this.blend) return false;
     this.blend.progress = SmoothDamper.damp(
       this.blend.progress,
       1,
       this.blend.velocity,
-      smoothTime,
+      this.blend.smoothTime,
       Infinity,
       delta
     );
@@ -359,7 +370,7 @@ export class OrbitXControls extends InteractionHandler {
       this.needsUpdate = false;
     }
     this.controlStateHandler.applyToObject(this.camera);
-    if (this.updateBlend(smoothTime, delta)) this.needsUpdate = true;
+    if (this.updateBlend(delta)) this.needsUpdate = true;
     return true;
   };
 

@@ -291,3 +291,37 @@ describe("transition from grounded", async () => {
     expect(controls.mode).toBe("orbit");
   });
 });
+
+describe("transitionTime", async () => {
+  // Frames until the camera has turned 95 % of the way.
+  const framesTo95 = (configure: (c: OrbitXControls) => void, call: (c: OrbitXControls) => void) => {
+    const camera = new PerspectiveCamera();
+    const controls = new OrbitXControls(mockDomElement, camera, "orbit");
+    controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+    controls.setPosition({ x: 3, y: 4, z: 5 });
+    configure(controls);
+    const start = camera.quaternion.clone();
+    call(controls);
+    const frames: number[] = [];
+    let last = camera.quaternion.clone();
+    for (let i = 0; i < 600 && controls.update(1 / 60); i++) {
+      frames.push(start.angleTo(camera.quaternion));
+      last = camera.quaternion.clone();
+    }
+    const total = start.angleTo(last);
+    return frames.findIndex((angle) => angle >= 0.95 * total) + 1;
+  };
+  const roll = { up: { x: 0, y: 0, z: 1 }, transition: true };
+
+  it("should take about 2.4 times transitionTime", async () => {
+    const frames = framesTo95((c) => (c.transitionTime = 1), (c) => c.setMode("isotropic", roll));
+    expect(frames / 60).toBeGreaterThan(2);
+    expect(frames / 60).toBeLessThan(2.8);
+  });
+
+  it("should be overridable per call", async () => {
+    const slow = framesTo95(() => {}, (c) => c.setMode("isotropic", { ...roll, transitionTime: 1 }));
+    const fast = framesTo95(() => {}, (c) => c.setMode("isotropic", { ...roll, transitionTime: 0.1 }));
+    expect(slow).toBeGreaterThan(5 * fast);
+  });
+});

@@ -195,6 +195,7 @@ function createGui() {
     .add(settings, "up", Object.keys(UP_OPTIONS))
     .name("up (on mode change)");
   modeFolder.add(settings, "transition");
+  modeFolder.add(controls, "transitionTime", 0, 2, 0.05).name("transition time (s)");
   modeFolder.add({ reset: resetToStart }, "reset").name("reset to start (R)");
 
   const inputFolder = gui.addFolder("Input");
