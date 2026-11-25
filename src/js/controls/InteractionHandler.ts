@@ -15,19 +15,24 @@ const ACTION = {
   TOUCH_PAN: 5,
 };
 
+// Transformations triggered by user interaction
+export interface InteractionCallbacks {
+  dolly: (direction: number) => void;
+  rotate: (deltaX: number, deltaY: number) => void;
+  pan: (deltaX: number, deltaY: number) => void;
+}
+
 /**
  * Responsible for everything that has to do with user interaction.
- * The Controls class extends this abstract class and implements in particular the three transformation methods dolly, rotate and pan, as well as optional effects onEnable and onDisable.
- * The InteractionHandler is initially deactivated.
+ * The controls own an InteractionHandler and pass the three transformation methods dolly, rotate and pan to it.
+ * The InteractionHandler only listens to user interaction while connected to a DOM element.
  */
-export abstract class InteractionHandler {
-  private domElement: HTMLElement;
+export class InteractionHandler {
+  private domElement: HTMLElement | null = null;
+  private callbacks: InteractionCallbacks;
 
-  protected enabled: boolean;
-
-  constructor(domElement: HTMLElement) {
-    this.domElement = domElement;
-    this.enabled = false;
+  constructor(callbacks: InteractionCallbacks) {
+    this.callbacks = callbacks;
   }
 
   // ==================== A P I
@@ -50,23 +55,23 @@ export abstract class InteractionHandler {
   panEnabled = true;
 
   /**
-   * Start listening to user interaction.
+   * Start listening to user interaction on a DOM element.
+   * @param element usually the canvas of the renderer
    */
-  enable = () => {
-    if (this.enabled) return;
-    this.onEnable();
+  connect = (element: HTMLElement) => {
+    if (this.domElement === element) return;
+    this.disconnect();
+    this.domElement = element;
     this.startListeningToUser();
-    this.enabled = true;
   };
 
   /**
    * End listening to user interaction.
    */
-  disable = () => {
-    if (!this.enabled) return;
-    this.enabled = false;
+  disconnect = () => {
+    if (!this.domElement) return;
     this.stopListeningToUser();
-    this.onDisable();
+    this.domElement = null;
   };
 
   // ==================== I N T E R N A L   V A R I A B L E S
@@ -81,30 +86,20 @@ export abstract class InteractionHandler {
   private lastPointer = new Pointer();
   private pointer = new Pointer();
 
-  // ==================== A B S T R A C T S
-
-  // Additional effects that can optionally be overwritten by the extending class and trigger on enable/disable.
-  protected onEnable = () => {};
-  protected onDisable = () => {};
-
-  protected abstract dolly: (direction: number) => void;
-  protected abstract rotate: (deltaX: number, deltaY: number) => void;
-  protected abstract pan: (deltaX: number, deltaY: number) => void;
-
   // ==================== E V E N T S   L I S T E N E R S
 
   // Start controlling by user interaction
   private startListeningToUser = () => {
-    this.domElement.addEventListener("mousedown", this.onMouseDown);
-    this.domElement.addEventListener("wheel", this.onWheel);
-    this.domElement.addEventListener("touchstart", this.onTouchStart);
+    this.domElement?.addEventListener("mousedown", this.onMouseDown);
+    this.domElement?.addEventListener("wheel", this.onWheel);
+    this.domElement?.addEventListener("touchstart", this.onTouchStart);
   };
 
   // Stop controlling by user interaction
   private stopListeningToUser = () => {
-    this.domElement.removeEventListener("mousedown", this.onMouseDown);
-    this.domElement.removeEventListener("wheel", this.onWheel);
-    this.domElement.removeEventListener("touchstart", this.onTouchStart);
+    this.domElement?.removeEventListener("mousedown", this.onMouseDown);
+    this.domElement?.removeEventListener("wheel", this.onWheel);
+    this.domElement?.removeEventListener("touchstart", this.onTouchStart);
     this.stopMouseChangeListeners();
     this.stopTouchChangeListeners();
   };
@@ -113,32 +108,32 @@ export abstract class InteractionHandler {
 
   // Start listening for events that cause an action triggered by the mouse to be canceled.
   private startMouseChangeListeners = () => {
-    this.domElement.addEventListener("mouseup", this.onMouseUp);
-    this.domElement.addEventListener("mouseleave", this.onMouseLeave);
-    this.domElement.addEventListener("mousemove", this.onMouseMove);
+    this.domElement?.addEventListener("mouseup", this.onMouseUp);
+    this.domElement?.addEventListener("mouseleave", this.onMouseLeave);
+    this.domElement?.addEventListener("mousemove", this.onMouseMove);
   };
 
   // Stop listening for events that trigger the action abort. (The action has probably been canceled.)
   private stopMouseChangeListeners = () => {
-    this.domElement.removeEventListener("mouseup", this.onMouseUp);
-    this.domElement.removeEventListener("mouseleave", this.onMouseLeave);
-    this.domElement.removeEventListener("mousemove", this.onMouseMove);
+    this.domElement?.removeEventListener("mouseup", this.onMouseUp);
+    this.domElement?.removeEventListener("mouseleave", this.onMouseLeave);
+    this.domElement?.removeEventListener("mousemove", this.onMouseMove);
   };
 
   // ========== Touch Change Event Listeners
 
   // Start listening for events that cause an action triggered by touch to be canceled.
   private startTouchChangeListeners = () => {
-    this.domElement.addEventListener("touchend", this.onTouchEnd);
-    this.domElement.addEventListener("touchcancel", this.onTouchCancel);
-    this.domElement.addEventListener("touchmove", this.onTouchMove);
+    this.domElement?.addEventListener("touchend", this.onTouchEnd);
+    this.domElement?.addEventListener("touchcancel", this.onTouchCancel);
+    this.domElement?.addEventListener("touchmove", this.onTouchMove);
   };
 
   // Stop listening for events that trigger the action abort. (The action has probably been canceled.)
   private stopTouchChangeListeners = () => {
-    this.domElement.removeEventListener("touchend", this.onTouchEnd);
-    this.domElement.removeEventListener("touchcancel", this.onTouchCancel);
-    this.domElement.removeEventListener("touchmove", this.onTouchMove);
+    this.domElement?.removeEventListener("touchend", this.onTouchEnd);
+    this.domElement?.removeEventListener("touchcancel", this.onTouchCancel);
+    this.domElement?.removeEventListener("touchmove", this.onTouchMove);
   };
 
   // ========== Mouse Events
@@ -198,9 +193,9 @@ export abstract class InteractionHandler {
   private preventContextMenu = () => {
     const onContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      this.domElement.removeEventListener("contextmenu", onContextMenu);
+      this.domElement?.removeEventListener("contextmenu", onContextMenu);
     };
-    this.domElement.addEventListener("contextmenu", onContextMenu);
+    this.domElement?.addEventListener("contextmenu", onContextMenu);
   };
 
   // ==================== E V E N T S   H A N D L E R S
@@ -249,12 +244,12 @@ export abstract class InteractionHandler {
     switch (this.action) {
       case ACTION.ROTATE: {
         if (!this.rotateEnabled) return this.handleMouseStop();
-        this.rotate(delta.x, delta.y);
+        this.callbacks.rotate(delta.x, delta.y);
         break;
       }
       case ACTION.PAN: {
         if (!this.panEnabled) return this.handleMouseStop();
-        this.pan(delta.x, delta.y);
+        this.callbacks.pan(delta.x, delta.y);
         break;
       }
       default: {
@@ -268,14 +263,14 @@ export abstract class InteractionHandler {
   private handleMouseWheel = (e: WheelEvent) => {
     if (!this.dollyEnabled) return;
     this.action = ACTION.DOLLY;
-    this.dolly(this.getWheelSteps(e));
+    this.callbacks.dolly(this.getWheelSteps(e));
     this.action = ACTION.NONE;
   };
 
   // Converts a wheel event into dolly steps, see wheel.
   private getWheelSteps = (e: WheelEvent) => {
     const { pixelsPerStep, minStepsAfterPause, maxStepsPerEvent, pause } = this.wheel;
-    const pixelsPerUnit = [1, WHEEL_LINE_HEIGHT, this.domElement.clientHeight];
+    const pixelsPerUnit = [1, WHEEL_LINE_HEIGHT, this.domElement?.clientHeight ?? 0];
     const pixels = e.deltaY * (pixelsPerUnit[e.deltaMode] ?? 1);
     let steps = Math.min(Math.abs(pixels) / pixelsPerStep, maxStepsPerEvent);
     const now = performance.now();
@@ -335,18 +330,18 @@ export abstract class InteractionHandler {
     switch (this.action) {
       case ACTION.TOUCH_ROTATE: {
         if (!this.rotateEnabled) return this.handleTouchStop();
-        this.rotate(delta.x, delta.y);
+        this.callbacks.rotate(delta.x, delta.y);
         break;
       }
       case ACTION.TOUCH_DOLLY: {
         if (!this.dollyEnabled) return this.handleTouchStop();
         // TODO: This might not work nicely. Test! Probably it needs a custom touchDolly method that evaluates delta instead of direction.
-        this.dolly(delta.y);
+        this.callbacks.dolly(delta.y);
         break;
       }
       case ACTION.TOUCH_PAN: {
         if (!this.panEnabled) return this.handleTouchStop();
-        this.pan(-delta.x, delta.y);
+        this.callbacks.pan(-delta.x, delta.y);
         break;
       }
       default: {
@@ -361,7 +356,7 @@ export abstract class InteractionHandler {
   // Returns the distance between the last two positions on the screen in relation to its size.
   private getRelativePointerDelta = () => {
     return Pointer.getDelta(this.pointer, this.lastPointer).scale(
-      1 / this.domElement.clientHeight
+      1 / (this.domElement?.clientHeight ?? 1)
     );
   };
 }

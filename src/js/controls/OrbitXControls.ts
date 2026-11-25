@@ -13,19 +13,29 @@ import { approxEqual } from "./utils/mathUtils";
 /**
  * Custom camera controls with different modes that define the transformations triggered by user interaction.
  */
-export class OrbitXControls extends InteractionHandler {
+export class OrbitXControls {
   private camera: PerspectiveCamera;
+  private domElement: HTMLElement;
   private _mode: ControlMode;
   private controlStateHandler: ControlStateInterpolator<any>;
 
   private defaultState: SaveState;
+
+  // Listens to mouse, wheel and touch input and triggers the transformations.
+  private input = new InteractionHandler({
+    dolly: (direction) => this.dolly(direction),
+    rotate: (deltaX, deltaY) => this.rotate(deltaX, deltaY),
+    pan: (deltaX, deltaY) => this.pan(deltaX, deltaY),
+  });
+
+  protected enabled = false;
 
   constructor(
     domElement: HTMLElement,
     camera: PerspectiveCamera,
     mode: ControlMode = "orbit"
   ) {
-    super(domElement);
+    this.domElement = domElement;
     this.camera = camera;
     this._mode = mode;
     this.controlStateHandler = this.getAnimatorFromMode(mode);
@@ -225,15 +235,60 @@ export class OrbitXControls extends InteractionHandler {
 
   // ==================== E N A B L E  &  D I S A B L E
 
-  // If the camera was moved while disabled, the changes are applied to the controls.
-  // This might lead to an update of the orbit center.
-  protected onEnable = () => {
+  /**
+   * Start listening to user interaction.
+   * If the camera was moved while disabled, the changes are applied to the controls.
+   * This might lead to an update of the orbit center.
+   */
+  enable = () => {
+    if (this.enabled) return;
     this.controlStateHandler.setFromObject(this.camera);
     this.controlStateHandler.jumpToEnd();
+    this.input.connect(this.domElement);
+    this.enabled = true;
   };
 
-  // Stop smoothDamp and discard all future changes on disable.
-  protected onDisable = () => this.controlStateHandler.discardEnd();
+  /**
+   * End listening to user interaction.
+   * Stops smoothDamp and discards all future changes.
+   */
+  disable = () => {
+    if (!this.enabled) return;
+    this.enabled = false;
+    this.input.disconnect();
+    this.controlStateHandler.discardEnd();
+  };
+
+  // ==================== I N P U T   S E T T I N G S
+  // Forwarded to the InteractionHandler.
+
+  get rotateEnabled() {
+    return this.input.rotateEnabled;
+  }
+  set rotateEnabled(v: boolean) {
+    this.input.rotateEnabled = v;
+  }
+
+  get panEnabled() {
+    return this.input.panEnabled;
+  }
+  set panEnabled(v: boolean) {
+    this.input.panEnabled = v;
+  }
+
+  get dollyEnabled() {
+    return this.input.dollyEnabled;
+  }
+  set dollyEnabled(v: boolean) {
+    this.input.dollyEnabled = v;
+  }
+
+  /**
+   * Converts wheel events into dolly steps. See InteractionHandler.wheel.
+   */
+  get wheel() {
+    return this.input.wheel;
+  }
 
   // ==================== S E T T E R
 
