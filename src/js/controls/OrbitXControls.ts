@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Vector3Like } from "three";
+import { PerspectiveCamera, Quaternion, Vector3, Vector3Like } from "three";
 import { InteractionHandler } from "./InteractionHandler";
 import { ControlMode } from "./types/ControlMode";
 import { ModeSpecificSetting } from "./utils/ModeSpecificSetting";
@@ -7,6 +7,8 @@ import { IsotropicInterpolator } from "./interpolators/IsotropicInterpolator";
 import { GroundedInterpolator } from "./interpolators/GroundedInterpolator";
 import { OrbitInterpolator } from "./interpolators/OrbitInterpolator";
 import { SaveState } from "./utils/SaveState";
+import { SmoothDamper } from "./utils/SmoothDamper";
+import { approxEqual } from "./utils/mathUtils";
 
 /**
  * Custom camera controls with different modes that define the transformations triggered by user interaction.
@@ -119,13 +121,19 @@ export class OrbitXControls extends InteractionHandler {
    * @param options.up direction that should be up afterwards: the pole axis in 'orbit', the screen up in 'isotropic'. Ignored in 'grounded', where up always points away from the orbit center.
    *   Defaults to the current camera up. If the camera looks along it (e.g. coming from 'grounded'), the former viewing direction along the surface becomes up.
    *   Can also be used without changing the mode.
-   * @param options.transition if the camera should smooth damp to its new state (or jump if false)
+   * @param options.transition if the camera should move to its new state in one smooth movement (or jump if false)
    */
   setMode = (
     mode: ControlMode,
     { up, transition = false }: { up?: Vector3Like; transition?: boolean } = {}
   ) => {
     if (this.mode === mode && !up) return;
+    // The new state is applied immediately. A transition blends the camera from its old to its new transformation.
+    // This is one movement, also if the view direction changes, e.g. from 'grounded' to the orbit center.
+    const from = this.blend ?? {
+      position: this.camera.position.clone(),
+      quaternion: this.camera.quaternion.clone(),
+    };
     const saveState = this.controlStateHandler.saveState();
     if (this.mode !== mode) {
       this._mode = mode;
@@ -137,7 +145,56 @@ export class OrbitXControls extends InteractionHandler {
     if (up && mode !== "grounded") saveState.up.copy(up).normalize();
     this.controlStateHandler.loadState(saveState);
     this.clampDistance();
-    this.internalUpdate(transition);
+    this.internalUpdate();
+    if (transition && this.dampingEnabled) {
+      this.blend = {
+        position: from.position.clone(),
+        quaternion: from.quaternion.clone(),
+        progress: 0,
+        velocity: { value: 0 },
+      };
+      this.applyBlend();
+    } else this.blend = undefined;
+  };
+
+  // Camera transformation before a mode change and how far the camera has moved to the new one, see setMode.
+  private blend?: {
+    position: Vector3;
+    quaternion: Quaternion;
+    progress: number;
+    velocity: { value: number };
+  };
+
+  // Moves the camera from the blend start towards the transformation the control state has applied.
+  private applyBlend = () => {
+    if (!this.blend) return;
+    const { position, quaternion, progress } = this.blend;
+    // Copies of the target, because lerpVectors and slerpQuaternions start by overwriting the camera values.
+    const targetPosition = this.blendTargetPosition.copy(this.camera.position);
+    const targetQuaternion = this.blendTargetQuaternion.copy(this.camera.quaternion);
+    this.camera.position.lerpVectors(position, targetPosition, progress);
+    this.camera.quaternion.slerpQuaternions(quaternion, targetQuaternion, progress);
+  };
+  private blendTargetPosition = new Vector3();
+  private blendTargetQuaternion = new Quaternion();
+
+  // Advances the blend. Returns if it needs another update.
+  private updateBlend = (smoothTime: number, delta: number) => {
+    if (!this.blend) return false;
+    this.blend.progress = SmoothDamper.damp(
+      this.blend.progress,
+      1,
+      this.blend.velocity,
+      smoothTime,
+      Infinity,
+      delta
+    );
+    if (approxEqual(this.blend.progress, 1)) {
+      this.blend = undefined;
+      return false;
+    }
+    this.applyBlend();
+    return true;
   };
 
   private getAnimatorFromMode = (
@@ -301,6 +358,7 @@ export class OrbitXControls extends InteractionHandler {
       this.needsUpdate = false;
     }
     this.controlStateHandler.applyToObject(this.camera);
+    if (this.updateBlend(smoothTime, delta)) this.needsUpdate = true;
     return true;
   };
 

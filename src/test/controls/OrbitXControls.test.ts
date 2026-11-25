@@ -190,9 +190,11 @@ describe("setMode", async () => {
     const target = new Vector3(0, 0, 1);
     controls.setMode("orbit", { up: target, transition: true });
     controls.update(1 / 60);
-    expect(camera.up.angleTo(target)).toBeGreaterThan(0.01);
+    const right = () => new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    expect(Math.abs(right().dot(target))).toBeGreaterThan(0.01); // still rolling
     settle(controls);
-    expect(camera.up.angleTo(target)).toBeCloseTo(0);
+    expect(right().dot(target)).toBeCloseTo(0);
+    expect(screenUpOf(camera).dot(target)).toBeGreaterThan(0);
   });
 });
 
@@ -247,4 +249,45 @@ describe("transition path", async () => {
       });
     }
   }
+});
+
+describe("transition from grounded", async () => {
+  for (const to of ["orbit", "isotropic"] as ControlMode[]) {
+    for (const up of [undefined, { x: 0, y: 0, z: 1 }]) {
+      it(`should move in one smooth movement to ${to}${up ? " with up" : ""}`, async () => {
+        const camera = new PerspectiveCamera();
+        const controls = new OrbitXControls(mockDomElement, camera, "grounded");
+        controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+        controls.setPosition({ x: 3, y: 4, z: 5 });
+        controls.lookAt({ x: 10, y: 4, z: 0 }); // look away from the center
+        const position = camera.position.clone();
+        let last = camera.quaternion.clone();
+        controls.setMode(to, { up, transition: true });
+        expect(controls.mode).toBe(to);
+        expect(camera.quaternion.angleTo(last)).toBeCloseTo(0); // no jump on the call
+        let maxStep = 0;
+        let frames = 0;
+        while (controls.update(1 / 60) && frames < 600) {
+          frames++;
+          maxStep = Math.max(maxStep, camera.quaternion.angleTo(last));
+          last = camera.quaternion.clone();
+        }
+        expect(frames).toBeLessThan(600);
+        expect(maxStep).toBeLessThan((20 * Math.PI) / 180);
+        expect(camera.position.distanceTo(position)).toBeCloseTo(0);
+        const toCenter = position.clone().negate().normalize();
+        const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        expect(forward.angleTo(toCenter)).toBeCloseTo(0);
+        const screenUp = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+        if (up) expect(screenUp.dot(new Vector3(0, 0, 1))).toBeGreaterThan(0);
+      });
+    }
+  }
+
+  it("should switch immediately without transition", async () => {
+    const camera = new PerspectiveCamera();
+    const controls = new OrbitXControls(mockDomElement, camera, "grounded");
+    controls.setMode("orbit");
+    expect(controls.mode).toBe("orbit");
+  });
 });
