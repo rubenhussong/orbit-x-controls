@@ -1,6 +1,7 @@
 import { PerspectiveCamera, Quaternion, Vector3 } from "three";
 import { expect, describe, it } from "vitest";
 import { OrbitXControls } from "../../js/controls/OrbitXControls";
+import { ControlMode } from "../../js/controls/types/ControlMode";
 
 const mockDomElement = document.createElement("div");
 
@@ -47,4 +48,38 @@ describe("isotropic enable", async () => {
     // q and -q describe the same rotation, so compare the angle between them.
     expect(camera.quaternion.angleTo(quat)).toBeCloseTo(0);
   });
+});
+
+describe("mode switch", async () => {
+  it("should change the mode", async () => {
+    const controls = new OrbitXControls(
+      mockDomElement,
+      new PerspectiveCamera(),
+      "orbit"
+    );
+    controls.mode = "isotropic";
+    expect(controls.mode).toBe("isotropic");
+    controls.mode = "grounded";
+    expect(controls.mode).toBe("grounded");
+  });
+
+  const modes: ControlMode[] = ["orbit", "isotropic", "grounded"];
+  for (const from of modes) {
+    for (const to of modes) {
+      if (from === to) continue;
+      it(`should keep the camera position from ${from} to ${to}`, async () => {
+        const camera = new PerspectiveCamera();
+        const controls = new OrbitXControls(mockDomElement, camera, from);
+        controls.setOrbitCenter({ x: 0, y: 0, z: 0 });
+        controls.setPosition({ x: 3, y: 4, z: 5 });
+        const pos = camera.position.clone();
+        controls.mode = to;
+        for (let i = 0; i < 60; i++) {
+          controls.needsUpdate = true;
+          controls.update(1 / 60);
+        }
+        expect(camera.position.distanceTo(pos)).toBeCloseTo(0);
+      });
+    }
+  }
 });

@@ -110,7 +110,7 @@ export class OrbitXControls extends InteractionHandler {
    */
   set mode(mode: ControlMode) {
     if (this.mode === mode) return;
-    this.mode = mode;
+    this._mode = mode;
     const saveState = this.controlStateHandler.saveState();
     this.controlStateHandler = this.getAnimatorFromMode(mode);
     this.controlStateHandler.loadState(saveState);

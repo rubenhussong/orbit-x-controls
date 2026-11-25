@@ -132,6 +132,7 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
    */
   jumpToEnd = () => {
     this.end.normalize();
+    this.now.up = this.end.up;
     this.now.orbitCenter.copy(this.end.orbitCenter);
     this.now.phi = this.end.phi;
     this.now.theta = this.end.theta;
@@ -144,6 +145,7 @@ export class OrbitInterpolator extends ControlStateInterpolator<OrbitState> {
    */
   discardEnd = () => {
     this.now.normalize();
+    this.end.up = this.now.up;
     this.end.orbitCenter.copy(this.now.orbitCenter);
     this.end.phi = this.now.phi;
     this.end.theta = this.now.theta;
@@ -398,7 +400,7 @@ class OrbitState extends ControlState {
    */
   set up(v: Vector3Like) {
     if (approxEqualVec3(this.up, v)) return;
-    const offset = this.offset;
+    const offset = this.offset.clone();
     this._up.copy(v);
     this.fromUpToY.setFromUnitVectors(this.up, AXIS.Y);
     this.fromYToUp.copy(this.fromUpToY).invert();
